@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Movie & Novel Ranker</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #0d0d0d; color: #fff; margin: 0; padding: 30px; }
+    h1 { text-align: center; margin-bottom: 12px }
+    .box { max-width: 900px; margin: auto; background: #121212; padding: 20px; border-radius: 12px; }
+    input, select { width: 100%; padding: 12px; border-radius: 8px; border: none; margin-bottom: 12px; box-sizing: border-box; }
+    button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #4c5cff; color: white; font-size: 16px; cursor: pointer; }
+    ul { margin-top: 16px; padding-left: 18px; }
+    li { margin: 8px 0; }
+    .hint { color: #bdbdbd; font-size: 14px; margin-bottom: 10px; }
+    .chip { display:inline-block; background:#1f1f1f; padding:6px 10px; border-radius:16px; margin:4px; cursor:pointer; }
+    .row { display:flex; gap:10px; }
+    @media (min-width:700px){ .row { align-items:center; } .box{padding:28px} }
+  </style>
+</head>
+<body>
+  <h1>Movie & Novel Ranker</h1>
+  <div class="box">
+    <div class="hint">Try queries: <span class="chip" onclick="fillQuery('best english action movie')">best english action movie</span> <span class="chip" onclick="fillQuery('best hindi thriller movie')">best hindi thriller movie</span> <span class="chip" onclick="fillQuery('best technology novel')">best technology novel</span></div>
+
+    <div class="row">
+      <input id="query" placeholder="Type something like: best english action movies" />
+    </div>
+    <button id="searchBtn">Search</button>
+
+    <ul id="results"></ul>
+  </div>
+
+<script>
+  // --- DATA: categories -> top 10 lists ---
+  const data = {
+    "best english action movie": ["Mad Max: Fury Road","John Wick","Mission: Impossible – Fallout","The Dark Knight","Inception","Gladiator","Skyfall","Edge of Tomorrow","The Bourne Ultimatum","Avatar"],
+    "best english thriller movie": ["Se7en","Shutter Island","Gone Girl","Prisoners","The Girl with the Dragon Tattoo","Fight Club","The Prestige","No Country for Old Men","The Departed","Memento"],
+    "best hindi action movie": ["War","Pathaan","Tiger Zinda Hai","Vikram Vedha","Baaghi 2","Bang Bang","Sooryavanshi","Ghajini","Singham","Dhoom 3"],
+    "best hindi thriller movie": ["Drishyam","Drishyam 2","Andhadhun","Kahaani","Talaash","Ugly","Raat Akeli Hai","Badla","A Wednesday","Article 15"],
+    "best hindi romance movie": ["Yeh Jawaani Hai Deewani","Jab We Met","Tamasha","Ae Dil Hai Mushkil","Mohabbatein","Dilwale Dulhania Le Jayenge","Kal Ho Naa Ho","Hum Tum","Veer-Zaara","Sita Ramam (Hindi Dub)"],
+    "best english romance movie": ["La La Land","The Notebook","Titanic","Pride and Prejudice","Call Me By Your Name","The Fault in Our Stars","About Time","Me Before You","500 Days of Summer","The Vow"],
+    "best technology novel": ["Ready Player One","Neuromancer","Snow Crash","The Circle","Daemon","Digital Fortress","The Martian","The Andromeda Strain","Jurassic Park","I, Robot"],
+    "best story novel": ["Harry Potter and the Philosopher's Stone","The Alchemist","The Hobbit","The Little Prince","Wonder","The Kite Runner","Percy Jackson: The Lightning Thief","Charlie and the Chocolate Factory","The Secret Garden","Anne of Green Gables"],
+    "best anime novel": ["Your Name (Novel)","A Silent Voice (Light Novel)","Sword Art Online","Tokyo Ghoul: Days","Re:Zero","No Game No Life","Weathering With You","Naruto Novels","Demon Slayer Novels","Attack on Titan Novels"],
+    "best english crime movie": ["Zodiac","The Departed","Heat","The Usual Suspects","The Irishman","Inside Man","Mystic River","Wind River","Nightcrawler","Sherlock Holmes"],
+    "best hindi crime movie": ["Gangs of Wasseypur","Special 26","Talaash","Gangaajal","Sarkar","Article 15","Talvar","Batla House","Haider","Badlapur"],
+    "best english detective novel": ["Sherlock Holmes: A Study in Scarlet","The Murder of Roger Ackroyd","The Girl with the Dragon Tattoo","Gone Girl","The Big Sleep","And Then There Were None","The Da Vinci Code","The Cuckoo's Calling","The Hound of the Baskervilles","In the Woods"],
+    "best english horror movie": ["The Conjuring","Insidious","Hereditary","The Exorcist","It","Sinister","A Quiet Place","The Nun","The Ring","Annabelle"],
+    "best hindi horror movie": ["Stree","Tumbbad","Bhoot","Pari","Bulbbul","Raaz","1920","Bhool Bhulaiyaa","Ek Thi Daayan","Ragini MMS"],
+    "best english sci-fi movie": ["Interstellar","Inception","The Matrix","Dune","Arrival","Blade Runner 2049","Gravity","Avatar","The Martian","Edge of Tomorrow"],
+    "best hindi comedy movie": ["3 Idiots","Hera Pheri","Phir Hera Pheri","Munna Bhai MBBS","Chup Chup Ke","Bhool Bhulaiyaa","Dhamaal","Golmaal","Welcome","Fukrey"],
+    "best fantasy novel": ["Harry Potter Series","Percy Jackson Series","The Hobbit","The Lord of the Rings","Narnia","Eragon","The Witcher","Mistborn","The Name of the Wind","Six of Crows"],
+    "best sci-fi novel": ["Dune","Ender's Game","Foundation","Neuromancer","The Martian","Snow Crash","The Time Machine","Hyperion","Ready Player One","The War of the Worlds"]
+  };
+
+  // --- Helpers ---
+  function normalize(text){
+    return text.trim().toLowerCase().replace(/[’‘']/g, "'");
+  }
+
+  // Find best matching keys for a user query.
+  // Supports multi-keyword fuzzy matching: all tokens in query must appear in the key (in any order).
+  function findMatchKeys(query){
+    const q = normalize(query);
+    if(!q) return [];
+    const tokens = q.split(/\s+/).filter(Boolean);
+    return Object.keys(data).filter(key => {
+      const k = normalize(key);
+      // every token should be included in the key string
+      return tokens.every(t => k.includes(t));
+    });
+  }
+
+  // Render list to results node
+  function renderList(list){
+    const box = document.getElementById('results');
+    box.innerHTML = '';
+    if(!list || list.length === 0){ box.innerHTML = '<li>No results found 😭</li>'; return; }
+    list.forEach((item, i) => { box.innerHTML += `<li>${i+1}. ${item}</li>`; });
+  }
+
+  // The main search function (fixed and self-contained)
+  function searchRank(){
+    const q = document.getElementById('query').value || '';
+    const exact = data[q.toLowerCase()];
+    if(exact){ renderList(exact); return; }
+
+    // fuzzy multi-token match
+    const matches = findMatchKeys(q);
+    if(matches.length === 1){ renderList(data[matches[0]]); return; }
+    if(matches.length > 1){
+      // If multiple categories match, merge their lists (de-dup, keep order)
+      const merged = [];
+      const seen = new Set();
+      matches.forEach(k => {
+        data[k].forEach(item => { if(!seen.has(item)){ seen.add(item); merged.push(item); } });
+      });
+      renderList(merged.slice(0, 20)); // show up to 20 combined results
+      return;
+    }
+
+    // fallback: try a loose contains across keys
+    const key = Object.keys(data).find(k => normalize(k).includes(normalize(q)));
+    if(key){ renderList(data[key]); return; }
+
+    renderList([]);
+  }
+
+  // UI wiring
+  document.getElementById('searchBtn').addEventListener('click', searchRank);
+  document.getElementById('query').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') searchRank(); });
+  function fillQuery(text){ document.getElementById('query').value = text; }
+
+  // --- No stray code below. Document ends cleanly. ---
+</script>
+
+</body>
+</html>
